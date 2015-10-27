@@ -1,11 +1,14 @@
 import argparse
 import csv
+import itertools
 import logging
 import requests
+import socket
 import time
 
 from BeautifulSoup import BeautifulSoup
 from datetime import datetime, timedelta
+from memcache import Client
 
 
 
@@ -28,6 +31,7 @@ class Crawler(object):
         self.last_url = None
         self.post_url = None
         self.last_request = None
+        self.cache = self.get_cache()
 
 
     def crawl(self):
@@ -75,14 +79,41 @@ class Crawler(object):
 
     def crawl_state(self, abbrev, name):
         logger.info('crawling {} ({})'.format(name, abbrev)) 
-        response = self.post('search.state', input_state=abbrev)
-        return self.parse_crawl(response)
+        return self.crawl_type('search.state', input_state=abbrev)
 
 
     def crawl_country(self, abbrev, name):
         logger.info('crawling {} ({})'.format(name, abbrev))
-        response = self.post('search.country', input_country=abbrev)
+        return self.crawl_type('search.country', input_country=abbrev)
+
+
+    def crawl_type(self, search_type, **kwargs):
+        response = self.post_or_cache(search_type, **kwargs)
         return self.parse_crawl(response)
+
+
+    def post_or_cache(self, search_type, **kwargs):
+        cache_key = self.cache_key(search_type, **kwargs)
+
+        if self.cache:
+            response = self.cache.get(cache_key)
+
+            if response is not None:
+                return response
+
+        response = self.post(search_type, **kwargs)
+
+        if self.cache:
+            self.cache.set(cache_key, response, time=0)
+
+        return response
+
+
+    def cache_key(self, *args, **kwargs):
+        return '-'.join(itertools.chain(
+            args,
+            *((k, v) for k, v in kwargs.iteritems())
+        ))
 
 
     def parse_crawl(self, response):
@@ -161,6 +192,17 @@ class Crawler(object):
             'top.wc.type': 'P',
             'top.wc.gender': 'B',
         })
+
+
+    def get_cache(self):
+        try:
+            socket.create_connection(('localhost', 11211))
+            logger.info('using local memcached')
+
+            return Client(['localhost:11211'])
+        except socket.error:
+            logger.info('no local memcached')
+            return None
 
 
 if '__main__' == __name__:
