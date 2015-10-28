@@ -7,6 +7,7 @@ import time
 
 from BeautifulSoup import BeautifulSoup
 from datetime import datetime, timedelta
+from hashlib import md5
 from memcache import Client
 
 
@@ -107,13 +108,13 @@ class Crawler(object):
 
             page_results, has_next = self.parse_crawl(response)
             results.extend(page_results)
+            print 'page', page, len(results), 'result(s)'
 
             if not has_next:
                 break
 
             page += 1
 
-        print 'page', page, len(results), 'result(s)'
         return results
 
 
@@ -134,11 +135,8 @@ class Crawler(object):
         return response
 
 
-    def cache_key(self, *args, **kwargs):
-        return '-'.join(itertools.chain(
-            args,
-            *(map(str, item) for item in kwargs.iteritems())
-        ))
+    def cache_key(self, **kwargs):
+        return md5(str(kwargs)).hexdigest()
 
 
     def parse_crawl(self, response):
