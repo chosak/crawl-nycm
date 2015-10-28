@@ -31,7 +31,17 @@ class Crawler(object):
 
     def crawl(self):
         self.crawl_root(initial=True)
-        return filter(None, self.generate_results())
+        return self.generate_unique(self.generate_results())
+
+
+    def generate_unique(self, results):
+        uniques = set()
+
+        for result in results:
+            items = tuple(result.items())
+            if result and items not in uniques:
+                uniques.add(items)
+                yield result
 
 
     def generate_results(self):
@@ -258,7 +268,7 @@ if '__main__' == __name__:
 
     args = parser.parse_args()
 
-    results = Crawler().crawl()
+    results = list(Crawler().crawl())
 
     if results:
         print 'writing', len(results), 'to', args.filename
